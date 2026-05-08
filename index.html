@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>NOVA · 3D AI CHAT | Backend Ready for Render</title>
+    <!-- Google Fonts & Font Awesome -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <!-- Three.js Core -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.128.0/build/three.module.js"
+            }
+        }
+    </script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+            height: 100vh;
+            color: #f0f3ff;
+        }
+
+        /* 3D canvas background */
+        #canvas-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            display: block;
+        }
+
+        /* Main UI overlay */
+        .ui-overlay {
+            position: relative;
+            z-index: 10;
+            width: 100%;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(2px);
+            padding: 1.5rem;
+        }
+
+        /* Glassmorphic Chat Card */
+        .chat-card {
+            width: 100%;
+            max-width: 1200px;
+            height: 90vh;
+            background: rgba(12, 15, 28, 0.55);
+            backdrop-filter: blur(18px);
+            border-radius: 2.5rem;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 25px 45px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            transition: all 0.3s ease;
+            animation: float-in 0.7s cubic-bezier(0.2, 0.9, 0.4, 1.1);
+        }
+
+        @keyframes float-in {
+            0% {
+                opacity: 0;
+                transform: translateY(30px) scale(0.97);
+                backdrop-filter: blur(0px);
+            }
+            100% {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+                backdrop-filter: blur(18px);
+            }
+        }
+
+        /* Header with 3D vibe */
+        .chat-header {
+            padding: 1.2rem 2rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(4px);
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .brand-icon {
+            width: 42px;
+            height: 42px;
+            background: linear-gradient(135deg, #a855f7, #3b82f6);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            box-shadow: 0 8px 20px rgba(59,130,246,0.4);
+        }
+
+        .brand h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            letter-spacing: -0.3px;
+            background: linear-gradient(120deg, #fff, #a5b4fc);
+            background-clip: text;
+            -webkit-background-clip: text;
+            color: transparent;
+        }
+
+        .badge {
+            background: rgba(255,255,240,0.12);
+            padding: 6px 14px;
+            border-radius: 100px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            backdrop-filter: blur(4px);
+            border: 1px solid rgba(168,85,247,0.5);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .badge i {
+            font-size: 0.7rem;
+            color: #a855f7;
+        }
+
+        /* Messages area */
+        .messages-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1.5rem 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.2rem;
+            scroll-behavior: smooth;
+        }
+
+        /* custom scroll */
+        .messages-area::-webkit-scrollbar {
+            width: 5px;
+        }
+        .messages-area::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .messages-area::-webkit-scrollbar-thumb {
+            background: rgba(168,85,247,0.5);
+            border-radius: 10px;
+        }
+
+        /* message bubbles */
+        .message {
+            display: flex;
+            gap: 14px;
+            max-width: 85%;
+            animation: fadeSlideUp 0.3s ease;
+        }
+        @keyframes fadeSlideUp {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .user-message {
+            align-self: flex-end;
+            flex-direction: row-reverse;
+        }
+        .assistant-message {
+            align-self: flex-start;
+        }
+
+        .avatar {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            background: rgba(30, 35, 58, 0.7);
+            backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            flex-shrink: 0;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        .user-message .avatar {
+            background: linear-gradient(145deg, #3b82f6, #2563eb);
+            box-shadow: 0 0 8px #3b82f6aa;
+        }
+        .assistant-message .avatar {
+            background: linear-gradient(145deg, #8b5cf6, #6d28d9);
+            box-shadow: 0 0 8px #a855f7aa;
+        }
+
+        .bubble {
+            background: rgba(20, 25, 45, 0.7);
+            backdrop-filter: blur(8px);
+            border-radius: 24px;
+            border-bottom-left-radius: 6px;
+            padding: 12px 20px;
+            font-size: 0.95rem;
+            line-height: 1.45;
+            letter-spacing: 0.2px;
+            border: 1px solid rgba(255,255,255,0.08);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            transition: transform 0.1s ease;
+        }
+        .user-message .bubble {
+            background: linear-gradient(135deg, rgba(59,130,246,0.8), rgba(37,99,235,0.7));
+            border-bottom-right-radius: 6px;
+            border-bottom-left-radius: 24px;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        .assistant-message .bubble {
+            background: rgba(18, 22, 45, 0.75);
+            border: 1px solid rgba(168,85,247,0.3);
+        }
+
+        .typing-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(30, 35, 58, 0.6);
+            backdrop-filter: blur(8px);
+            padding: 10px 18px;
+            border-radius: 40px;
+            width: fit-content;
+            border: 1px solid rgba(168,85,247,0.4);
+        }
+        .typing-indicator span {
+            width: 8px;
+            height: 8px;
+            background: #c084fc;
+            border-radius: 50%;
+            display: inline-block;
+            animation: wave 1.2s infinite ease-in-out;
+        }
+        .typing-indicator span:nth-child(2) { animation-delay: 0.2s; background: #a855f7; }
+        .typing-indicator span:nth-child(3) { animation-delay: 0.4s; background: #7e22ce; }
+        @keyframes wave {
+            0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
+            30% { transform: translateY(-8px); opacity: 1; }
+        }
+
+        /* Input area */
+        .input-area {
+            padding: 1.2rem 2rem;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            background: rgba(0, 0, 0, 0.25);
+            backdrop-filter: blur(8px);
+        }
+        .input-container {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            background: rgba(8, 12, 24, 0.7);
+            border-radius: 60px;
+            padding: 6px 6px 6px 22px;
+            border: 1px solid rgba(255,255,255,0.2);
+            transition: all 0.2s;
+        }
+        .input-container:focus-within {
+            border-color: #a855f7;
+            box-shadow: 0 0 12px rgba(168,85,247,0.3);
+            background: rgba(15, 20, 35, 0.8);
+        }
+        .input-container input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            padding: 14px 0;
+            font-size: 1rem;
+            color: white;
+            font-family: 'Inter', sans-serif;
+            outline: none;
+        }
+        .input-container input::placeholder {
+            color: rgba(255,255,255,0.4);
+            font-weight: 400;
+        }
+        .send-btn {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: linear-gradient(145deg, #8b5cf6, #6d28d9);
+            border: none;
+            color: white;
+            font-size: 1.2rem;
+            cursor: pointer;
+            transition: 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+        .send-btn:hover {
+            transform: scale(1.05);
+            background: linear-gradient(145deg, #a855f7, #7e22ce);
+            box-shadow: 0 0 12px #a855f7;
+        }
+        .send-btn:active {
+            transform: scale(0.96);
+        }
+        .send-btn.disabled {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+
+        /* suggestions quick chips */
+        .suggestions {
+            display: flex;
+            gap: 12px;
+            margin-top: 14px;
+            flex-wrap: wrap;
+        }
+        .chip {
+            background: rgba(45, 50, 80, 0.6);
+            backdrop-filter: blur(4px);
+            padding: 6px 16px;
+            border-radius: 40px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .chip:hover {
+            background: #6d28d9cc;
+            border-color: #c084fc;
+            transform: translateY(-2px);
+        }
+
+        /* error toast style */
+        .error-toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #dc2626dd;
+            backdrop-filter: blur(12px);
+            padding: 10px 20px;
+            border-radius: 40px;
+            font-size: 0.8rem;
+            z-index: 100;
+            pointer-events: none;
+            transition: 0.2s;
+            font-weight: 500;
+            border: 1px solid #ff7777;
+        }
+
+        /* Responsive */
+        @media (max-width: 700px) {
+            .chat-card { height: 95vh; width: 98%; border-radius: 1.8rem; }
+            .messages-area { padding: 1rem; }
+            .message { max-width: 95%; }
+            .brand h1 { font-size: 1.2rem; }
+            .suggestions { justify-content: center; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="canvas-container"></div>
+
+<div class="ui-overlay">
+    <div class="chat-card">
+        <div class="chat-header">
+            <div class="brand">
+                <div class="brand-icon"><i class="fas fa-brain"></i></div>
+                <h1>NOVA·3D INTELLECT</h1>
+            </div>
+            <div class="badge">
+                <i class="fas fa-gem"></i> <span>Backend · Render Ready</span>
+                <i class="fas fa-circle" style="font-size: 0.5rem; color: #22c55e; margin-left: 6px;"></i>
+            </div>
+        </div>
+
+        <div class="messages-area" id="chatMessages">
+            <!-- dynamic messages injected -->
+        </div>
+
+        <div class="input-area">
+            <div class="input-container">
+                <input type="text" id="messageInput" placeholder="Say something... backend AI will respond ✨" autocomplete="off">
+                <button class="send-btn" id="sendBtn"><i class="fas fa-paper-plane"></i></button>
+            </div>
+            <div class="suggestions">
+                <div class="chip" data-suggestion="What can you do?">✨ Capabilities</div>
+                <div class="chip" data-suggestion="Tell me a joke">🎭 Joke</div>
+                <div class="chip" data-suggestion="Explain 3D rendering">🧊 3D rendering</div>
+                <div class="chip" data-suggestion="Motivate me">⚡ Motivation</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script type="module">
+    import * as THREE from 'three';
+
+    // ======================== CONFIGURATION FOR RENDER BACKEND ========================
+    // 👇 UPDATE THIS URL WITH YOUR ACTUAL RENDER BACKEND ENDPOINT (e.g., https://your-app.onrender.com/api/chat)
+    // The backend should accept POST requests with JSON: { "messages": [{ "role": "user", "content": "..." }] }
+    // and respond with: { "reply": "AI response text" }
+    const API_BASE_URL = "https://rag-backend-qk31.onrender.com";  // <-- CHANGE THIS TO YOUR RENDER URL
+    
+    // Optional: if you want to keep a local fallback when backend is unreachable (for demo, but we'll show error)
+    const USE_FALLBACK_ON_ERROR = true;   // set false to strictly require backend
+    
+    // ======================== END OF CONFIGURATION =====================================
+    
+    // ---------- THREE.JS HIGH-END 3D SCENE ----------
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x030318);
+    scene.fog = new THREE.FogExp2(0x030318, 0.0025);
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(0, 2, 12);
+    camera.lookAt(0, 0, 0);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    container.appendChild(renderer.domElement);
+
+    // Lights
+    const ambientLight = new THREE.AmbientLight(0x22223b);
+    scene.add(ambientLight);
+    const mainLight = new THREE.DirectionalLight(0xffffff, 1);
+    mainLight.position.set(5, 5, 7);
+    scene.add(mainLight);
+    const backLight = new THREE.PointLight(0x4f46e5, 0.5);
+    backLight.position.set(-2, 1, -4);
+    scene.add(backLight);
+    const fillLight = new THREE.PointLight(0xa855f7, 0.4);
+    fillLight.position.set(3, 2, 4);
+    scene.add(fillLight);
+
+    // central glowing Torus Knot (high-end)
+    const knotGeo = new THREE.TorusKnotGeometry(1.2, 0.32, 256, 64, 3, 4);
+    const knotMat = new THREE.MeshStandardMaterial({ color: 0x8b5cf6, emissive: 0x3b0764, emissiveIntensity: 0.65, metalness: 0.8, roughness: 0.25 });
+    const torusKnot = new THREE.Mesh(knotGeo, knotMat);
+    scene.add(torusKnot);
+    
+    // outer ring with glow effect
+    const outerRing = new THREE.Mesh(
+        new THREE.TorusGeometry(1.65, 0.05, 128, 200),
+        new THREE.MeshStandardMaterial({ color: 0xc084fc, emissive: 0x7e22ce, emissiveIntensity: 0.9 })
+    );
+    scene.add(outerRing);
+    
+    // floating particles (stars)
+    const particleCount = 1800;
+    const particlesGeometry = new THREE.BufferGeometry();
+    const positions = new Float32Array(particleCount * 3);
+    for (let i = 0; i < particleCount; i++) {
+        positions[i*3] = (Math.random() - 0.5) * 200;
+        positions[i*3+1] = (Math.random() - 0.5) * 100;
+        positions[i*3+2] = (Math.random() - 0.5) * 80 - 20;
+    }
+    particlesGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    const particleMat = new THREE.PointsMaterial({ color: 0xa78bfa, size: 0.12, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending });
+    const particles = new THREE.Points(particlesGeometry, particleMat);
+    scene.add(particles);
+    
+    // additional twinkling tiny stars
+    const starFieldGeo = new THREE.BufferGeometry();
+    const starPos = [];
+    for (let i = 0; i < 1200; i++) {
+        starPos.push((Math.random() - 0.5) * 400);
+        starPos.push((Math.random() - 0.5) * 200);
+        starPos.push((Math.random() - 0.5) * 100 - 40);
+    }
+    starFieldGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(starPos), 3));
+    const starFieldMat = new THREE.PointsMaterial({ color: 0xd9c9ff, size: 0.08, transparent: true, opacity: 0.5 });
+    const starField = new THREE.Points(starFieldGeo, starFieldMat);
+    scene.add(starField);
+    
+    // rotating glow orbs (floating)
+    const orbGroup = new THREE.Group();
+    for (let i = 0; i < 16; i++) {
+        const orbGeo = new THREE.SphereGeometry(0.08, 8, 8);
+        const orbMat = new THREE.MeshStandardMaterial({ color: 0xc084fc, emissive: 0xa855f7, emissiveIntensity: 0.8 });
+        const orb = new THREE.Mesh(orbGeo, orbMat);
+        const radius = 2.2;
+        const angle = (i / 16) * Math.PI * 2;
+        orb.position.set(Math.cos(angle) * radius, Math.sin(angle * 2) * 0.8, Math.sin(angle) * radius);
+        orbGroup.add(orb);
+    }
+    scene.add(orbGroup);
+    
+    let time = 0;
+    function animate3D() {
+        requestAnimationFrame(animate3D);
+        time += 0.008;
+        torusKnot.rotation.x += 0.005;
+        torusKnot.rotation.y += 0.008;
+        torusKnot.rotation.z += 0.003;
+        outerRing.rotation.x += 0.003;
+        outerRing.rotation.z += 0.005;
+        outerRing.rotation.y += 0.004;
+        particles.rotation.y += 0.0005;
+        particles.rotation.x = Math.sin(time * 0.1) * 0.1;
+        starField.rotation.y += 0.0002;
+        orbGroup.rotation.y += 0.01;
+        orbGroup.rotation.x = Math.sin(time * 0.5) * 0.2;
+        
+        camera.position.x += (0 - camera.position.x) * 0.03;
+        camera.lookAt(0, 0.5, 0);
+        renderer.render(scene, camera);
+    }
+    animate3D();
+    
+    window.addEventListener('resize', onWindowResize, false);
+    function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+    
+    // ---------- BACKEND INTEGRATION (Render Ready) ----------
+    const messagesContainer = document.getElementById('chatMessages');
+    const messageInput = document.getElementById('messageInput');
+    const sendBtn = document.getElementById('sendBtn');
+    
+    let conversationHistory = [];   // store messages for context: { role, content }
+    let isBotResponding = false;
+    
+    // Helper: Show temporary toast message
+    function showToast(message, isError = true) {
+        let toast = document.querySelector('.error-toast');
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.className = 'error-toast';
+            document.body.appendChild(toast);
+        }
+        toast.textContent = message;
+        toast.style.opacity = '1';
+        toast.style.background = isError ? '#dc2626dd' : '#16a34add';
+        setTimeout(() => {
+            toast.style.opacity = '0';
+        }, 4000);
+    }
+    
+    function addMessageToUI(sender, text, isUser = false) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `message ${isUser ? 'user-message' : 'assistant-message'}`;
+        const avatar = document.createElement('div');
+        avatar.className = 'avatar';
+        avatar.innerHTML = isUser ? '<i class="fas fa-user-astronaut"></i>' : '<i class="fas fa-robot"></i>';
+        const bubbleDiv = document.createElement('div');
+        bubbleDiv.className = 'bubble';
+        bubbleDiv.innerText = text;
+        messageDiv.appendChild(avatar);
+        messageDiv.appendChild(bubbleDiv);
+        messagesContainer.appendChild(messageDiv);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        
+        // store in conversation history for context (used when sending to backend)
+        conversationHistory.push({ role: isUser ? "user" : "assistant", content: text });
+        if (conversationHistory.length > 30) conversationHistory.shift();
+    }
+    
+    function showTypingIndicator() {
+        const typingDiv = document.createElement('div');
+        typingDiv.className = 'message assistant-message';
+        typingDiv.id = 'typingIndicator';
+        typingDiv.innerHTML = `<div class="avatar"><i class="fas fa-robot"></i></div><div class="typing-indicator"><span></span><span></span><span></span></div>`;
+        messagesContainer.appendChild(typingDiv);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+    
+    function removeTypingIndicator() {
+        const indicator = document.getElementById('typingIndicator');
+        if (indicator) indicator.remove();
+    }
+    
+    // Local fallback response (smart & context aware) - only if backend fails & fallback enabled
+    async function localFallbackResponse(userMessage, historyContext) {
+        // Simulate a tiny delay for realism
+        await new Promise(resolve => setTimeout(resolve, 300));
+        const lowerMsg = userMessage.toLowerCase().trim();
+        if (lowerMsg.includes("hello") || lowerMsg.includes("hi")) return "🌌 Hello from local mode! Backend unreachable, but I'm still fully functional (offline AI). How can I help?";
+        if (lowerMsg.includes("joke")) return "Why did the 3D model break up with the texture? It felt too mapped out! 😆";
+        if (lowerMsg.includes("render") || lowerMsg.includes("3d")) return "3D rendering brings ideas to life! In this offline mode, I can still answer general questions. Set your backend URL to unlock advanced AI.";
+        return `📡 [Local Fallback] I heard: "${userMessage}". To connect your Render backend, update API_BASE_URL at the top of this file. Once connected, I'll use your real AI model! 🚀`;
+    }
+    
+    // Core function to send message to Render backend
+    async function sendUserMessage() {
+        if (isBotResponding) return;
+        const rawMessage = messageInput.value.trim();
+        if (!rawMessage) return;
+        
+        isBotResponding = true;
+        sendBtn.classList.add('disabled');
+        messageInput.disabled = true;
+        
+        // Add user message to UI
+        addMessageToUI('You', rawMessage, true);
+        messageInput.value = '';
+        
+        // Show typing indicator
+        showTypingIndicator();
+        
+        let aiResponseText = "";
+        let backendError = false;
+        
+        try {
+            // Prepare messages array for backend (last 10 exchanges to keep context, but send full history if needed)
+            // The backend expects array of messages with role & content
+            const payload = {
+                messages: conversationHistory.slice(-12) // send recent context, but you can also send full
+            };
+            
+            // Make POST request to Render backend
+            const response = await fetch(API_BASE_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                mode: 'cors',  // important for cross-origin requests (Vercel -> Render)
+                body: JSON.stringify(payload)
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            const data = await response.json();
+            // Expected backend response format: { reply: "string" } or { response: "string" } 
+            if (data.reply) {
+                aiResponseText = data.reply;
+            } else if (data.response) {
+                aiResponseText = data.response;
+            } else if (data.message) {
+                aiResponseText = data.message;
+            } else {
+                throw new Error("Backend response missing 'reply' field");
+            }
+        } catch (error) {
+            console.error("Backend connection error:", error);
+            backendError = true;
+            if (USE_FALLBACK_ON_ERROR) {
+                aiResponseText = await localFallbackResponse(rawMessage, conversationHistory);
+                showToast(`⚠️ Backend unreachable. Using local fallback. Check Render URL: ${API_BASE_URL}`, true);
+            } else {
+                aiResponseText = "❌ Backend connection failed. Please verify your Render endpoint is running and CORS is enabled. Check console for details.";
+                showToast(`Backend error: ${error.message}`, true);
+            }
+        }
+        
+        removeTypingIndicator();
+        // Add assistant response to UI (adds to conversation history automatically)
+        addMessageToUI('Nova AI', aiResponseText, false);
+        
+        // Re-enable controls
+        isBotResponding = false;
+        sendBtn.classList.remove('disabled');
+        messageInput.disabled = false;
+        messageInput.focus();
+        
+        // If backend wasn't used but fallback was, we don't need further action.
+        if (!backendError && !USE_FALLBACK_ON_ERROR) {
+            // success
+        }
+    }
+    
+    function handleSend() {
+        if (!isBotResponding) sendUserMessage();
+    }
+    
+    sendBtn.addEventListener('click', handleSend);
+    messageInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter' && !isBotResponding) {
+            e.preventDefault();
+            sendUserMessage();
+        }
+    });
+    
+    // Suggestions chips
+    document.querySelectorAll('.chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+            if (isBotResponding) return;
+            const suggestion = chip.getAttribute('data-suggestion');
+            if (suggestion) {
+                messageInput.value = suggestion;
+                sendUserMessage();
+            }
+        });
+    });
+    
+    // Initial welcome message (with backend hint)
+    setTimeout(() => {
+        addMessageToUI('Nova AI', `🌀 **Backend-Ready Interface** · Connected to Render endpoint: \`${API_BASE_URL}\`\n\n✨ I'm configured to send your messages there. Update the URL in the code after deploying your backend. Meanwhile, test me — if backend is down, fallback responses will appear. Let's build something legendary!`, false);
+    }, 300);
+</script>
+</body>
+</html>
