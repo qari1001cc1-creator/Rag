@@ -1,6 +1,6 @@
 Flask==3.0.0
 flask-cors==4.0.0
-torch==2.0.1
+torch==2.9.0
 transformers==4.44.0
 pypdf2==3.0.1
 python-docx
@@ -9,3 +9,5 @@ Pillow
 openai
 accelerate
 numpy
+gunicorn
+python-3.11.9
